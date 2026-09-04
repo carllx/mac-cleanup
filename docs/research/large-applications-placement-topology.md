@@ -23,13 +23,13 @@
 
 2. **核心目标应用外置能力定性**：
    - **Unity**：
-     - **Unity Editor 核心与 PlaybackEngines (27GB+)**：**Safe / Recommended on T7**。官方原生支持在 Unity Hub 中配置 Installs Location 到外置盘，实测当前 `<T7>` 上已安装 `2022.3.54f1`（含 AndroidPlayer），已完成本地 CLI version 及 batchmode probe 验证。
+     - **Unity Editor 核心与 PlaybackEngines (约 27GiB)**：**Safe / Recommended on T7**。官方原生支持在 Unity Hub 中配置 Installs Location 到外置盘，实测当前 `<T7>` 上已安装 `2022.3.54f1`（含 AndroidPlayer），已完成本地 CLI version 及 batchmode probe 验证。
      - **Unity Hub (`com.unity3d.unityhub`)**：**Keep on Internal SSD**。负责全局授权、Editor 探测与版本编排，体积仅约百兆，且依赖系统级 Helper。
      - **Unity UPM 缓存与 Asset Store 缓存**：**Supported but Conditional**。支持通过环境变量（`UPM_CACHE_ROOT`）或 `.upmconfig.toml` 重定向至 `<T7>`，但断连时在无网或未预取包环境下会导致项目编译解析挂起。
      - **Unity Projects**：**Safe / Recommended on T7**。实测当前用户约 15GB Unity 项目已安放在 `<T7>`。
    - **Blender**：
-     - **Blender.app (802MB)**：**Safe / Recommended on T7**。macOS 版 Blender 为自包含单 App 包，支持跨卷存放；官方原生支持 **Portable Installation**（在 `Blender.app/Contents/Resources/` 下创建 `portable` 目录，配置、启动文件、已安装插件与扩展将随该目录保存）。注意：缓存与临时目录仍需结合内置 Preferences 显式配置。
-     - **Blender User Library (`~/Library/Application Support/Blender`)**：目前占用仅 564KB；建议通过 Blender 原生“Preferences -> File Paths”将 Asset Libraries 与 Temporary Directory 显式指定到 `<T7>`。
+     - **Blender.app (约 802MiB)**：**Safe / Recommended on T7**。macOS 版 Blender 为自包含单 App 包，支持跨卷存放；官方原生支持 **Portable Installation**（在 `Blender.app/Contents/Resources/` 下创建 `portable` 目录，配置、启动文件、已安装插件与扩展将随该目录保存）。注意：缓存与临时目录仍需结合内置 Preferences 显式配置。
+     - **Blender User Library (`~/Library/Application Support/Blender`)**：目前占用仅数百 KB；建议通过 Blender 原生“Preferences -> File Paths”将 Asset Libraries 与 Temporary Directory 显式指定到 `<T7>`。
    - **Adobe Creative Cloud & Substance 3D**：
      - **Creative Cloud Desktop & Core Services (CCXProcess / SLCache / SLStore / PCD)**：**Keep on Internal SSD**。官方明确 CC 桌面程序必须安装在默认的启动盘位置，不支持选择其他文件夹或驱动器；严禁外置或创建根级别 symlink，否则极易引发授权损坏与后台死锁。
      - **Substance 3D Painter / Designer .app**：**Needs runtime probe before external install**。虽然 CC Desktop 偏好设置中存在“Install location”，但 Adobe 官方故障排查（如 Error 179）明确要求安装路径必须在本地内置硬盘（local hard drive），**不得指定为外置驱动器（not an external drive）**。目前官方证据无法证明 macOS 下外置盘安装受官方支持，在没有严格运行时验证前，不得贸然安装到 `<T7>`。
@@ -37,7 +37,7 @@
      - **Substance 3D 临时文件与 SVT 纹理缓存 (Temp / SVT Cache)**：**Safe / Recommended on T7**。官方支持在 `General Preferences -> Temporary files`（或环境变量 `SUBSTANCE_PAINTER_TEMP_LOCATION`）中显式重定向。
      - **Substance 3D 自动保存 (Autosave)**：**Safe / Recommended on T7**。官方插件中提供 `Plugins -> Autosave -> Configure`，可重定向到 `<T7>`。
    - **既有外置实践的客观审视（Autodesk Maya & Adobe Audition）**：
-     - **Autodesk Maya 2024**：本机探测证实位于 `<T7>` 的 Maya 2024 目录（11GB）其可执行二进制执行 probe（`-v`）成功返回版本号；但这仅证明当前二进制具备执行能力，未经长周期运行时探测前，不泛化为其可长期无故障稳定运行。
+     - **Autodesk Maya 2024**：本机探测证实位于 `<T7>` 的 Maya 2024 目录（约 11GiB）其可执行二进制执行 probe（`-v`）成功返回版本号；但这仅证明当前二进制具备执行能力，未经长周期运行时探测前，不泛化为其可长期无故障稳定运行。
      - **Adobe Audition 2024**：历史运维中曾对 `/Applications/Adobe Audition 2024` 创建指向 `<T7>` 的软链接（Symlink），且其缓存位于 `<T7>/AuditionCache`。软链接的存在属于历史遗留现状，不能作为证明当前 Adobe 更新及授权生命周期安全的证据，该模式归入 **Needs runtime probe before move**，绝不作为推荐外置模式。
 
 3. **关键物理约束：Samsung T7 采用 `exfat` 文件系统**：
@@ -48,40 +48,28 @@
 
 ## 2. 本机只读事实探测清单（Fact Probe Audit）
 
-> **隐私与安全保护原则**：所有私人文件路径、个人项目名称与详细凭据清单仅在本地只读审计，公开报告全部采用 `<T7>`、`<BlenderProject>` 等中性别名去标识化。
+> **去标识化保护原则**：本报告仅保留支撑 #11 技术决策的去标识化聚合事实，物理设备节点（如设备编号）与非目标应用的具体快照清单保留在本地，不进入公开报告。
 
 ### 2.1 存储与挂载现状
-- **内置系统盘**：`/System/Volumes/Data`，容量 228GiB，已用 200GiB，**剩余可用空间仅约 3.0GiB（99% 占用）**，系统处于严重临界缺盘状态，日常操作存在由于 swap 或解压导致磁盘耗尽的风险。
-- **外置盘 Samsung T7**：挂载于 `<T7>`，容量 1.8TiB，已用 1.2TiB，**可用 585GiB（69% 占用）**。文件系统类型为 `exfat`（挂载选项：`local, nodev, nosuid, noowners, noatime, fskit`）。
+- **内置系统盘**：256GB 级别内置 SSD，实测挂载可用空间**仅约 3.0GiB（处于临界极低余量）**，日常操作存在由于 swap 或解压导致磁盘耗尽的风险。
+- **外置盘 Samsung T7**：2TB 级别外置 SSD（挂载于 `<T7>`），文件系统类型为 `exfat`，**可用空间充裕（约 585GiB 空闲）**。
 
 ### 2.2 本机关键创作应用分布现状
 | 应用/组件 | 探测位置 | 实际体积 | 类型/状态与探针证据 |
 | :--- | :--- | :--- | :--- |
-| **Unity 2022.3.54f1** | `<T7>/Applications/2022.3.54f1/` | **27 GiB** | 位于 `<T7>`。包含 `Unity.app` (13GB) 与 `PlaybackEngines/AndroidPlayer` (14GB)。CLI batchmode/version probe 通过 (`2022.3.54f1`)。 |
+| **Unity 2022.3.54f1** | `<T7>/Applications/2022.3.54f1/` | **约 27 GiB** | 位于 `<T7>`。包含 `Unity.app` (约 13GiB) 与 `PlaybackEngines/AndroidPlayer` (约 14GiB)。CLI batchmode/version probe 通过 (`2022.3.54f1`)。 |
 | **Unity Hub** | 无独立 `/Applications/Unity Hub.app` | 探测到更新缓存残留 | 遗留 Updater 缓存与配置。 |
-| **Unity Projects** | `<T7>/PROJECTS/Unity/` | **15 GiB** | 位于 `<T7>`，包含项目工程及下载目录。 |
-| **Blender** | `/Applications/Blender.app` | **802 MiB** | 位于内置盘。版本：`Blender 4.5.1 LTS`。CLI probe 验证通过。 |
-| **Blender Support**| `~/Library/Application Support/Blender/` | 564 KiB | 包含 4.2 和 4.5 版本配置目录。 |
-| **Blender Project**| `<T7>/PROJECTS/<BlenderProject>` | 198 MiB | 位于 `<T7>`。 |
-| **Adobe Audition 2024** | `/Applications/Adobe Audition 2024` | 0 B (软链接) -> **3.3 GiB on `<T7>`** | 历史遗留软链接指向 `<T7>/Applications/Adobe Audition 2024`。归入待运行时验证，不作为推荐范式。 |
-| **Audition Cache** | `<T7>/AuditionCache/` | 768 KiB | 历史已配置在外置 `<T7>`。 |
-| **Autodesk Maya 2024** | `<T7>/Applications/Autodesk/` | **11 GiB** | 位于 `<T7>`。CLI binary probe 验证成功 (`Maya 2024, Cut Number 202302170737`)。仅证明当前二进制可执行。 |
-| **Adobe Premiere Pro 2024** | `/Applications/Adobe Premiere Pro 2024` | 72 KiB | 内置盘仅保留卸载存根。 |
-| **Substance 3D (历史痕迹)** | `~/Documents/Adobe/Adobe Substance 3D Painter/` | 328 KiB | 探测到历史文档目录、`shelf.ini`、assets/plugins 结构。当前未安装主程序。 |
-| **Adobe 系统支持库** | `/Library/Application Support/Adobe/` | **1.7 GiB** | 包含 SLCache, SLStore, PCD, Adobe Desktop Common 等核心授权/基础设施。 |
-| **Adobe 用户支持库** | `~/Library/Application Support/Adobe/` | **1.0 GiB** | 包含各类 CCXProcess、Dunamis、同步配置。 |
-
-### 2.3 本机其他典型巨型 GUI 应用与支持库（内置盘主要压力源）
-- **高占用 GUI 应用 (.app)**：
-  - 办公三件套合计 **7.4 GiB** (Word 2.7G, Excel 2.5G, PowerPoint 2.2G)。
-  - 企业微信 (`1.5G`)、WeChat (`1.4G`)、Google Chrome (`1.4G`)、calibre (`1.0G`)、Doubao (`1.0G`)。
-- **高占用 `~/Library/Application Support` 目录**：
-  - `Google`：**9.0 GiB**
-  - `Quark`：**2.9 GiB**
-  - `Antigravity`：**2.2 GiB**
-  - `Doubao`：**1.9 GiB**
-  - `Code` (VS Code)：**1.8 GiB**
-  - `com.baidu.BaiduNetdisk-mac`：**1.2 GiB**
+| **Unity Projects** | `<T7>/PROJECTS/Unity/` | **约 15 GiB** | 位于 `<T7>`，包含项目工程及下载目录。 |
+| **Blender** | `/Applications/Blender.app` | **约 802 MiB** | 位于内置盘。版本：`Blender 4.5.1 LTS`。CLI probe 验证通过。 |
+| **Blender Support**| `~/Library/Application Support/Blender/` | 数百 KiB | 包含 4.2 和 4.5 版本配置目录。 |
+| **Blender Project**| `<T7>/PROJECTS/<BlenderProject>` | 约 200 MiB | 位于 `<T7>`。 |
+| **Adobe Audition 2024** | `/Applications/Adobe Audition 2024` | 软链接 -> **约 3.3 GiB on `<T7>`** | 历史遗留软链接指向 `<T7>/Applications/Adobe Audition 2024`。归入待运行时验证，不作为推荐范式。 |
+| **Audition Cache** | `<T7>/AuditionCache/` | 数百 KiB | 历史已配置在外置 `<T7>`。 |
+| **Autodesk Maya 2024** | `<T7>/Applications/Autodesk/` | **约 11 GiB** | 位于 `<T7>`。CLI binary probe 验证成功 (`Maya 2024, Cut Number 202302170737`)。仅证明当前二进制可执行。 |
+| **Adobe Premiere Pro 2024** | `/Applications/Adobe Premiere Pro 2024` | 极小 | 内置盘仅保留卸载存根。 |
+| **Substance 3D (历史痕迹)** | `~/Documents/Adobe/Adobe Substance 3D Painter/` | 数百 KiB | 探测到历史文档目录、`shelf.ini`、assets/plugins 结构。当前未安装主程序。 |
+| **Adobe 系统支持库** | `/Library/Application Support/Adobe/` | **约 1.7 GiB** | 包含 SLCache, SLStore, PCD, Adobe Desktop Common 等核心授权/基础设施，必须保留在内置盘。 |
+| **Adobe 用户支持库** | `~/Library/Application Support/Adobe/` | **约 1.0 GiB** | 包含各类 CCXProcess、Dunamis、同步配置。 |
 
 ---
 
@@ -169,7 +157,7 @@ graph TD
 | **1. Safe / Recommended on T7** | - **Unity Editor 主程序与 PlaybackEngines** (`.../2022.3.54f1`)<br>- **Unity Projects 工程全集** (`<T7>/PROJECTS/Unity`)<br>- **Blender.app 主程序** (`/Applications/Blender.app` 迁往 `<T7>`)<br>- **Blender Asset Libraries & Projects**<br>- **Substance 3D 资产架 (Shelves/Assets)**<br>- **Substance 3D SVT 纹理缓存与临时目录**<br>- **Adobe Audition 缓存** (`<T7>/AuditionCache`) | 主程序空间<br>模块/SDK<br>资源库<br>cache/temp<br>项目数据 | **目前已分流约 55GB**；<br>未来迁移 Blender + Substance 相关配置与资产可**再分流 10~30GB**。 | - Unity 通过 Hub 设置外部安装路径；<br>- Blender 推荐配置 `portable` 模式并显式指定缓存/临时目录；<br>- Substance Painter 在软件设置中配置外部 Libraries 路径。 |
 | **2. Supported but Conditional** | - **Unity UPM 全局包缓存** (`UPM_CACHE_ROOT`)<br>- **Adobe 系列应用主程序** (如已验证可外置运行且具备脱盘容错的应用) | 主程序空间<br>cache 空间 | UPM 缓存约 2~10GB。 | - UPM 外置需接受离线脱盘时无法初始化新包的约束；<br>- 任何更新与安装操作依赖内置盘有充足空间。 |
 | **3. Keep on Internal SSD** | - **Creative Cloud Desktop** (`Adobe Desktop Common`)<br>- **Adobe 系统授权与运行库** (`/Library/Application Support/Adobe`)<br>- **Unity Hub** 主启动器与登录服务<br>- **系统与日常通讯高频应用** (微信、企业微信、Chrome、VS Code、Obsidian)<br>- **系统安装与解压 Temp 缓冲区** (`$TMPDIR`) | 授权/服务空间<br>主程序空间<br>temp (Staging) | 保持占用约 **15~25GB**。 | - 严禁外置，外置会导致服务自毁、授权丢失或断网后台常驻死锁；<br>- 必须维持内置盘基本运转余量。 |
-| **4. Needs runtime probe before move / install** | - **Substance 3D Painter / Designer .app** (官方证据表明 CC 限制安装于本地盘，外置缺乏支持依据)<br>- **现有通过 Symlink 外置的 Adobe Audition** (遗留软链接不等于受支持的更新生命周期)<br>- **现有外置 Autodesk Maya 2024** (probe 仅证实当前二进制可执行，未经验证长期稳定性)<br>- **高占用网盘/浏览器支持库**：<br>  - `~/Library/Application Support/Google` (9.0GB)<br>  - `~/Library/Application Support/Quark` (2.9GB)<br>  - `~/Library/Application Support/Doubao` (1.9GB)<br>  - `~/Library/Application Support/Code` (1.8GB)<br>  - `~/Library/Application Support/com.baidu.BaiduNetdisk-mac` (1.2GB) | 主程序空间<br>cache 空间<br>应用数据空间 | 潜在可释放空间 **10~15GB**。 | - **严禁直接 symlink 整个 Application Support**；<br>- Substance .app 在没有可控运行时探针前不得安装至外置卷；<br>- 各应用需在独立运行时探测其原生缓存配置能力。 |
+| **4. Needs runtime probe before move / install** | - **Substance 3D Painter / Designer .app** (官方证据表明 CC 限制安装于本地盘，外置缺乏支持依据)<br>- **现有通过 Symlink 外置的 Adobe Audition** (遗留软链接不等于受支持的更新生命周期)<br>- **现有外置 Autodesk Maya 2024** (probe 仅证实当前二进制可执行，未经验证长期稳定性) | 主程序空间<br>cache 空间<br>应用数据空间 | 潜在可释放空间 **10~15GB**。 | - **严禁直接 symlink 整个 Application Support**；<br>- Substance .app 在没有可控运行时探针前不得安装至外置卷；<br>- 各应用需在独立运行时探测其原生缓存配置能力。 |
 
 ---
 
@@ -194,8 +182,8 @@ graph TD
 
 - **挂载信息**：
   ```text
-  /dev/disk4s1 on <T7> (exfat, local, nodev, nosuid, noowners, noatime, fskit)
-  /dev/disk3s5 on /System/Volumes/Data (apfs, local, journaled, nobrowse) -> 200GiB Used / 3.0GiB Avail
+  <T7> mounted on exFAT (local, nodev, nosuid, noowners, noatime, fskit)
+  System Volume Data (APFS) -> ~200GiB Used / ~3.0GiB Available (critically low)
   ```
 - **T7 上 Unity Editor 验证**：
   ```text
@@ -216,3 +204,31 @@ graph TD
   ```text
   /Applications/Adobe Audition 2024 -> <T7>/Applications/Adobe Audition 2024
   ```
+
+---
+
+## 8. 官方技术依据与参考源（Official Sources）
+
+本报告结论直接依托以下官方一手技术文档与故障排查规范：
+
+1. **Unity Hub 安装目录设置 (Installs Location)**:
+   - Unity Documentation: *Change the Editor installation location in Unity Hub*  
+     [https://docs.unity.com/hub/en-us/manual/Preferences.html#installs](https://docs.unity.com/hub/en-us/manual/Preferences.html#installs)
+2. **Unity Package Manager (UPM) 全局缓存配置**:
+   - Unity Documentation: *UPM global cache configuration and environment variables (`cacheRoot` / `UPM_CACHE_ROOT`)*  
+     [https://docs.unity3d.com/Manual/upm-cache.html](https://docs.unity3d.com/Manual/upm-cache.html)
+3. **Blender macOS 安装与便携模式 (Portable Installation)**:
+   - Blender Manual: *Installing on macOS & Blender Directory Layout (USER, SYSTEM, LOCAL/portable)*  
+     [https://docs.blender.org/manual/en/latest/advanced/blender_directory_layout.html](https://docs.blender.org/manual/en/latest/advanced/blender_directory_layout.html)
+4. **Adobe Creative Cloud 应用程序安装位置更改**:
+   - Adobe Help Center: *Change the install location of your Creative Cloud apps*  
+     [https://helpx.adobe.com/creative-cloud/kb/change-install-location.html](https://helpx.adobe.com/creative-cloud/kb/change-install-location.html)
+5. **Adobe 安装错误 179 (Error 179 - 本地硬盘要求与外置盘限制)**:
+   - Adobe Help Center: *Fix Error 179 while installing Creative Cloud apps (Must be installed on a local hard drive, not an external drive)*  
+     [https://helpx.adobe.com/creative-cloud/kb/troubleshoot-download-install-logs.html#error179](https://helpx.adobe.com/creative-cloud/kb/troubleshoot-download-install-logs.html#error179)
+6. **Adobe Substance 3D Painter 自定义资产库配置 (Libraries)**:
+   - Adobe Substance 3D Documentation: *Managing custom assets, shelves, and library paths*  
+     [https://helpx.adobe.com/substance-3d-painter/interface/assets-panel/libraries.html](https://helpx.adobe.com/substance-3d-painter/interface/assets-panel/libraries.html)
+7. **Adobe Substance 3D Painter 临时文件与 SVT 缓存重定向**:
+   - Adobe Substance 3D Documentation: *General Preferences and `SUBSTANCE_PAINTER_TEMP_LOCATION` environment variable*  
+     [https://helpx.adobe.com/substance-3d-painter/preferences/general-preferences.html](https://helpx.adobe.com/substance-3d-painter/preferences/general-preferences.html)
