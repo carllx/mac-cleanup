@@ -9,24 +9,34 @@
 
 ## 1. 执行摘要（Executive Conclusion）
 
-本调研严格基于官方开发文档、API 规范与协议白皮书，评估了六大核心候选方案（百度网盘、iCloud Drive、Microsoft OneDrive、Dropbox、rclone 传输层、Syncthing）以及远端对象存储后端。核心结论如下：
+本调研严格基于官方开发文档、API 规范与协议白皮书，评估了存储后端（内置 SSD、Samsung T7、百度网盘、OneDrive、iCloud Drive、Dropbox、对象存储 OSS/COS/S3）与 Agent 自动化操作层（rclone、baidu-drive Agent Skill、Baidu Netdisk MCP、服务原生 API、桌面同步客户端）。核心结论如下：
 
-1. **内置盘减压有效性**：
-   - 消费级网盘（百度网盘、阿里云盘等）**完全不具备** macOS 原生按需占位符（Files-On-Demand）能力，开启双向同步即物理全量落盘，会迅速挤爆 256GB 内置盘。
-   - 商业云盘中，**iCloud Drive 坚决不支持将主同步目录外置**，无法利用 Samsung T7 分流。**OneDrive** 官方支持外置盘，但除要求格式化为 APFS 外，还明确要求外置盘**不得被 macOS 识别为可移动介质（non-removable / non-ejectable drive）**，Removable USB drives 明确不受支持；当前 Samsung T7 是否满足该系统分类仍待本机事实探测。**Dropbox** 外置盘能力则依赖 macOS 15.4+、APFS (Encrypted)、<500,000 文件以及官方 eligibility/rollout 资格限制。
-   - **rclone 作为传输/自动化引擎**，原生支持内存流式直传（Streaming Transfer），能直接将数据从本地/外置盘搬运到远端而完全不落地内置 SSD。
-2. **IDE Agent 自动化操作可靠性**：
-   - 国内消费级网盘（百度网盘等）无官方 CLI，缺乏开箱即用的标准开发环境接入能力；第三方逆向接口与爬虫存在滑动验证码（CAPTCHA）与风控阻断的次级观察（Secondary observation），**不适合引入确定性自动化脚本流水线**。
-   - Syncthing 采用后台异步对等全量复制模型，冲突文件处理机制（`.sync-conflict-*`）具有非确定性，且常驻后台消耗 8GB RAM 机器宝贵的内存，**不适合作为 Agent 自动化归档后端**。
-   - **rclone** 作为 Agent 操作层，具备确定性退出码（Exit Codes）、`--dry-run` 试运行、`lsjson` 结构化输出、内置标准 RC (Remote Control) HTTP API 与自动 Token 刷新机制，是 IDE Agent 最可靠的自动化操作介质。
-3. **架构职责与分层分离（Engine vs Storage Backend & Sync ≠ Archive ≠ Backup）**：
-   - **工具与后端分离**：`rclone` 本质是数据传输与自动化编排工具（Engine），本身不提供存储容量或数据安全保障；WORM（不可变防篡改）、Object Lock、Bucket Versioning、Lifecycle 冷归档策略、存储资费及取回延迟**均归属于具体的远端存储后端（如阿里云 OSS、腾讯云 COS、AWS S3 等）**。
-   - **同步与备份分离**：所有主流网盘与 Syncthing 的核心定位均为**双向同步（Two-way Sync）**，本地删除会在云端及多端引发级联清除，绝不能等同于冷归档或只读备份。真正的冷归档与灾备必须依托后端的防篡改与单向增量链路。
+1. **架构模型解耦：存储后端（Storage Backend/Tier）与自动化操作层（Agent Automation Layer）分离**：
+   - **后端与引擎分离**：存储服务提供空间、耐久性与底层安全（如 WORM 不可变防篡改、Bucket Versioning、冷归档 Lifecycle、配额与网络 SLA）；操作层（如 `rclone`、`baidu-drive` Skill）负责在各后端间执行受控的数据流转。**`rclone` 与 `baidu-drive` 并非互斥方案**，它们分别面向不同后端、承担不同工程职责。
+   - **同步、归档与备份分离**：主流网盘桌面客户端与 Syncthing 的核心定位均为**双向同步（Two-way Sync）**，本地删除会在云端及多端引发级联清除，绝不能等同于冷归档或只读备份。真正的冷归档（Archive）与灾备必须依托后端的防篡改、单向增量链路或严格隔离的安全作用域。
+2. **百度网盘结论细化（拒绝单一实体化评判）**：
+   - **Baidu desktop sync client（桌面全量同步客户端）**：**仍不适合作为 256GB Mac 的主同步层**。未接入 macOS 原生按需占位符（Files-On-Demand），开启双向同步会导致物理全量落盘，挤爆内置盘，且常驻后台占用内存。
+   - **baidu-drive Agent Skill (`baidu-netdisk/bdpan-storage`)**：**Conditional / Promising Agent-native Candidate**。提供官方封装的 Agent Skill 与 `bdpan` CLI，支持 macOS arm64/amd64 与结构化 JSON 输出；其最关键特性是**安全操作边界严格限制在 `/apps/bdpan/` 目录**。因此，它非常适合作为由 Agent 受控调度的归档隔离区（Agent-managed archive zone），但**绝不能推导为可用于直接操作或整理用户既有的整个网盘资产**。具体运行时兼容性已拆分至原型验证票据 [Issue #10](https://github.com/carllx/mac-cleanup/issues/10)。
+   - **Baidu Netdisk MCP Server (`baidu-netdisk/mcp`)**：**Conditional / Higher-friction Candidate**。具备更广的能力（含语义搜索、配额等），但官方明确个人用户目前仅属“限时体验”，且目前存在个人 Access Token 入口失效及 SSE endpoint 405 兼容性 open Issues，摩擦较高，暂不列入首轮运行时原型验证。
+3. **其他候选系统与内置盘减压有效性**：
+   - 商业云盘中，**iCloud Drive 坚决不支持将主同步目录外置**，无法利用 Samsung T7 分流。**OneDrive** 官方支持外置盘，但除要求 APFS 外，明确要求外置盘**不得被 macOS 识别为可移动介质（non-removable / non-ejectable drive）**；Samsung T7 是否满足该分类仍待本机事实探测。**Dropbox** 外置盘能力则依赖 macOS 15.4+、APFS (Encrypted)、<500,000 文件及 rollout 资格限制。
+   - **rclone 作为多后端自动化引擎**：原生支持内存流式直传（Streaming Transfer），能直接将数据从本地/外置盘搬运到远端而完全不落地内置 SSD；具备确定性退出码、`--dry-run`、`lsjson` 与 RC API，是跨存储调度的强力基础设施。
 
 ---
 
-## 2. 核心评估标准（Evaluation Criteria）
+## 2. 核心评估标准与架构分层模型（Architecture Model & Evaluation Criteria）
 
+### 2.1 架构模型：存储后端与自动化操作层解耦
+为彻底避免“将客户端与存储服务混为一谈”的分析缺陷，本报告将评估严格解耦为两个独立维度：
+1. **存储后端 / 分层（Storage Backend / Tier）**：
+   - 物理与云端载体：内置 256GB SSD、外置 Samsung T7 2TB SSD、百度网盘（Baidu Netdisk 云端存储）、Microsoft OneDrive、Apple iCloud、Dropbox、对象存储（阿里云 OSS / 腾讯云 COS / AWS S3 等）。
+   - 核心职责：提供数据耐久性、容量、安全策略（WORM / Bucket Versioning / Lifecycle）、资费与网络可用性。
+2. **Agent 自动化 / 访问层（Agent Access / Automation Layer）**：
+   - 操作工具与接口：`rclone`、`baidu-drive` Agent Skill (`bdpan`)、Baidu Netdisk MCP Server、服务原生 API（Microsoft Graph API / Dropbox API 等）、桌面同步客户端（Desktop Sync Clients）。
+   - 核心职责：在各存储后端之间安全调度数据，提供结构化输出、确定性退出码及凭据隔离。
+   - **关键洞察**：`rclone` 与 `baidu-drive` Agent Skill 绝非互斥方案。它们可以分别操作不同的存储后端、在系统分层中承担不同的专业职责（例如 `rclone` 调度对象存储与本地外置盘，`baidu-drive` 调度百度网盘隔离归档区）。
+
+### 2.2 评估标准
 - **A. 能否真正降低 256GB Mac 内置盘压力**：是否存在无物理占用的按需占位符（Dataless files）；是否支持选择性同步；能否将同步或工作根目录安全指定在 Samsung T7 外置 SSD（含 macOS 可移动驱动器限制）。
 - **B. IDE Agent / CLI 是否容易可靠操作**：是否有官方开放 API / CLI；自动化是否具备确定性退出码与结构化输出；避免依赖脆弱的 Web 登录态或风控不确定性。
 - **C. 边界分离（Engine vs Backend & Sync vs Archive vs Backup）**：区分传输引擎能力与存储后端能力；能否防止双向同步误删级联；是否存在单向冷归档和防篡改能力。
@@ -38,28 +48,56 @@
 
 ## 3. 候选方案对比矩阵（Candidate Comparison Matrix）
 
-| 评估维度 | 百度网盘 (Baidu Netdisk) | Apple iCloud Drive | Microsoft OneDrive | Dropbox | rclone (传输引擎) + 对象存储后端 | Syncthing |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **macOS 按需占位符** | **不支持**（全量物理落盘） | **支持**（原生 FileProvider） | **支持**（原生 FileProvider） | **支持**（原生 FileProvider） | 支持 mount（需 FUSE-T / nfsmount） | **不支持**（全量物理镜像） |
-| **根目录能否设在 Samsung T7** | 支持（自定义下载/同步目录） | **不支持**（系统强制锁定内置盘） | **有条件支持**（要求 APFS 且非 removable/ejectable；T7 需实测） | **有条件支持**（macOS 15.4+、加密 APFS、<500k 文件、需 rollout 资格） | **原生直接操作外置挂载路径** | 支持（支持外置盘与保护标记） |
-| **官方 CLI / 自动化 API** | **无官方 CLI**（OpenAPI 面向企业为主） | **无通用 REST API** / 无官方 CLI | **Graph API 完备** / 内置 CLI (`/unpin`) | **API v2 / 官方 SDK 完备** | **原生极丰富 CLI** / RC REST API | REST API / CLI 完备 |
-| **Agent 操作可靠度** | **低**（无官方 CLI，逆向易遇风控验证） | **低**（无接口、brctl 属未归档私有工具易复弹） | **中高**（通过 API / 内置 /unpin） | **中**（通过 API，本地无官方 CLI） | **极高**（确定性 ExitCode/JSON） | **低**（冲突命名破坏路径确定性） |
-| **服务本质定位** | 双向同步 / 单向备份 | 双向多端同步 | 双向多端同步 | 双向多端同步 | **数据传输引擎 (rclone) + 存储后端 (Cloud Storage)** | 双向持续异步对等同步 |
-| **防勒索整库回滚** | **不支持** | **不支持** | **支持**（M365 专享 30 天回滚） | **支持**（Dropbox Rewind） | **支持**（依赖具体 Backend Versioning/Lock）| **不支持**（误删实时扩散） |
-| **大陆网络可用性** | **直连良好**（非会员限速严苛） | **直连良好**（云上贵州运营） | **Uncertain / 需本机网络实测**（个人版直连波动） | **Uncertain / 需本机网络实测**（缺乏直连可用性保障） | **直连良好**（国内 OSS/COS 后端；境外后端需实测） | **Uncertain / 需本机网络实测**（公共节点连接性存疑）|
-| **锁定与导出难度** | **极重度**（非会员下载极慢） | **重度**（无流式 API，打包耗时） | **低**（Graph API / rclone 导出） | **极低**（API 开放成熟） | **零锁定**（开放标准协议） | **零锁定**（本地开放文件） |
-| **内存与系统开销** | 客户端常驻占内存 | 系统级守护进程 | 客户端常驻 | 客户端常驻 | **按需执行即释放，零常驻** | 常驻后台，大索引占用高内存 |
+| 评估维度 | 百度桌面同步客户端 (Baidu Desktop Sync) | baidu-drive Agent Skill (`bdpan-storage`) | Baidu Netdisk MCP Server (`baidu-netdisk/mcp`) | Apple iCloud Drive | Microsoft OneDrive | Dropbox | rclone (传输引擎) + 对象存储后端 | Syncthing |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **所属层级** | 桌面客户端 (Sync) | **Agent 自动化工具 (Skill/CLI)** | **Agent 自动化协议 (MCP)** | 桌面/系统同步客户端 | 桌面同步 + API/CLI | 桌面同步 + API | **数据传输引擎 (rclone) + 存储后端 (Cloud)** | 持续对等同步引擎 |
+| **macOS 按需占位符** | **不支持**（全量物理落盘） | **不涉及本地镜像**（按需显式传输） | **不涉及本地镜像**（按需显式传输） | **支持**（原生 FileProvider） | **支持**（原生 FileProvider） | **支持**（原生 FileProvider） | 支持 mount（需 FUSE-T / nfsmount） | **不支持**（全量物理镜像） |
+| **根目录能否设在 Samsung T7** | 支持（自定义下载/同步目录） | 原生直接操作外置路径（通过 CLI） | 原生直接操作外置路径（stdio 上传） | **不支持**（系统强制锁定内置盘） | **有条件支持**（要求 APFS 且非 removable/ejectable；T7 需实测） | **有条件支持**（macOS 15.4+、加密 APFS、<500k 文件、需 rollout 资格） | **原生直接操作外置挂载路径** | 支持（支持外置盘与保护标记） |
+| **官方 CLI / 自动化接口** | **无官方 CLI** | **官方 Agent Skill + bdpan CLI** (BETA) | **官方 MCP Server** (限时体验/企业为主) | **无通用 REST API** / 无官方 CLI | **Graph API 完备** / 内置 CLI (`/unpin`) | **API v2 / 官方 SDK 完备** | **原生极丰富 CLI** / RC REST API | REST API / CLI 完备 |
+| **操作作用域与安全边界** | 整个网盘（GUI 交互） | **严格限制在 `/apps/bdpan/`** | 整个网盘（权限更广） | 个人 iCloud Drive | 个人 OneDrive | 个人 Dropbox | 授权的 Bucket / 本地指定路径 | 选定同步目录 |
+| **Agent 操作可靠度** | **极低**（无 CLI，依赖 GUI） | **高（理论）**（支持 JSON，Token 不暴露，兼容多 Agent） | **中低（当前）**（Token 入口失效、SSE 405 open issues） | **低**（无接口、brctl 属未归档私有工具易复弹） | **中高**（通过 API / 内置 /unpin） | **中**（通过 API，本地无官方 CLI） | **极高**（确定性 ExitCode/JSON） | **低**（冲突命名破坏路径确定性） |
+| **服务/工具定位** | 双向同步 / 单向备份客户端 | **Agent 托管归档区操作工具** | **Agent 宽范围交互协议层** | 双向多端同步 | 双向多端同步 | 双向多端同步 | **通用传输引擎 (rclone) + 存储后端 (Cloud Storage)** | 双向持续异步对等同步 |
+| **防勒索整库回滚** | **不支持** | **不支持** | **不支持** | **不支持** | **支持**（M365 专享 30 天回滚） | **支持**（Dropbox Rewind） | **支持**（依赖具体 Backend Versioning/Lock）| **不支持**（误删实时扩散） |
+| **大陆网络可用性** | **直连良好**（非会员限速严苛） | **直连良好**（百度网盘服务端直连） | **直连良好**（官方接口服务端直连） | **直连良好**（云上贵州运营） | **Uncertain / 需本机网络实测**（个人版直连波动） | **Uncertain / 需本机网络实测**（缺乏直连可用性保障） | **直连良好**（国内 OSS/COS 后端；境外后端需实测） | **Uncertain / 需本机网络实测**（公共节点连接性存疑）|
+| **锁定与导出难度** | **极重度**（非会员下载慢） | 依赖 CLI 下载（受网盘限速与接口限制） | 依赖 API 传输（受接口限制） | **重度**（无流式 API，打包耗时） | **低**（Graph API / rclone 导出） | **极低**（API 开放成熟） | **零锁定**（开放标准协议） | **零锁定**（本地开放文件） |
+| **内存与系统开销** | 客户端常驻占内存 | **按需执行即释放，零常驻** | 按需启动 stdio / SSE 进程 | 系统级守护进程 | 客户端常驻 | 客户端常驻 | **按需执行即释放，零常驻** | 常驻后台，大索引占用高内存 |
 
 ---
 
 ## 4. 各候选方案深度事实与官方一手证据
 
-### 4.1 百度网盘 (Baidu Netdisk)
+### 4.1 百度网盘多层级生态与 Agent 原生能力拆分
+
+必须坚决避免将“百度网盘”作为单一实体进行粗暴评判。官方生态当前实际包含三大截然不同的操作介质：
+
+#### 4.1.1 百度桌面全量同步客户端 (Baidu Desktop Sync Client)
 - **本地空间行为**：Mac 客户端未接入苹果 `FileProvider` 框架，未实现按需文件占位符（[百度网盘帮助中心](https://help.baidu.com/)）。开启同步空间会导致云端选定文件全量下载到本地磁盘。客户端支持将同步目录指定到外置硬盘自定义目录，但缓存保存在沙盒与 `~/Library/Caches/` 下，无硬性容量上限。
 - **选择性同步**：官方 Mac 客户端在“同步空间”设置中支持勾选子文件夹进行选择性同步。
-- **自动化能力与接入现状**：官方无命令行 CLI 工具。百度网盘开放平台官方文档中心（[pan.baidu.com/union/doc/](https://pan.baidu.com/union/doc/)）公开展示有 OAuth 2.0 规范与文件管理/上传下载 API；但对于个人开发者应用接入的审核门槛及存量维护状态，官方资料未给出绝对公开声明，**标记为 Uncertain**。社区使用逆向 Web 接口/Cookie 自动化常观察到滑块验证（CAPTCHA）与频率限制现象，属于次级观察（Secondary observation），非官方承诺行为。
-- **安全与恢复**：回收站保留期普通用户 10 天，SVIP 30~180 天。无整库时间点回滚能力。个人版所有数据均存放在在线热存储池，无冷归档分层策略。
-- **网络与锁定**：国内直连带宽充足，但官方服务协议明确对非会员实施下载带宽 QoS 限制（通常在百 KB/s 量级）。到期后超额空间冻结上传，因限速导致非会员导出 TB 级数据在现实中阻力极大（[空间容量与到期规则](https://pan.baidu.com/)）。
+- **系统资源负担**：桌面客户端常驻后台消耗内存与 CPU，且在后台维护同步状态，对 8GB RAM 机器造成常态化资源挤占。
+- **结论**：**不适合作为 256GB Mac 内置盘的主同步层**。
+
+#### 4.1.2 官方 Agent Skill: `baidu-drive` (`baidu-netdisk/bdpan-storage`)
+- **仓库与定位**：开源仓库 `baidu-netdisk/bdpan-storage`，官方定位为面向 AI Agent 的存储交互 Skill。README 声明已兼容 Cursor、Codex CLI、Gemini CLI 等 Agent。
+- **提供能力**：明确提供 `upload`（上传）、`download`（下载）、`transfer`（转存）、`share`（分享）、`list/search`（列表/搜索）、`move/copy/rename`（移动/复制/重命名）、`mkdir`（创建目录）。
+- **架构与环境兼容性**：底层基于官方独立编译的 `bdpan` CLI；安装方式为 `npx skills add baidu-netdisk/bdpan-storage --skill baidu-drive`；支持 macOS `arm64` 与 `amd64` 平台。
+- **鉴权与自动化契约**：首次使用引导安装 `bdpan` CLI 工具并通过 OAuth 流程完成授权。官方明确要求 Token 由底层安全管理，不得被 Agent 读取或明文输出。CLI 命令支持输出 JSON，便于 Agent 进行确定性解析与条件判断。
+- **核心安全边界**：**操作权限严格限制在专属目录 `/apps/bdpan/`**。
+  - *工程推导*：这意味着该 Skill 天然形成了沙盒隔离，非常适合作为 **Agent-managed archive zone（Agent 托管安全归档区）**。
+  - *明确非目标与边界*：**绝对不能据此推导该 Skill 可以用于直接整理或操作用户既有的整个百度网盘资产**。
+- **当前状态与分级**：当前官方仍标注为 **BETA**。分级判定为 **Conditional / Promising Agent-native Candidate**。具体在 macOS + Antigravity 环境下的运行时最小闭环验证，已独立拆分至原型验证票据 [Issue #10](https://github.com/carllx/mac-cleanup/issues/10)。
+
+#### 4.1.3 官方 MCP Server: `baidu-netdisk/mcp`
+- **仓库与定位**：开源仓库 `baidu-netdisk/mcp`，基于模型上下文协议（Model Context Protocol）暴露百度网盘能力。
+- **提供能力**：相较 Skill 提供更广泛的接口能力，包括：file list、metadata、mkdir、copy、delete、move、rename、local upload、URL upload、keyword search、semantic search（语义搜索）、share、quota（容量查询）。
+- **传输与连接模式**：本地文件上传明确仅支持 `stdio` 传输模式；其他控制与查询能力支持 `SSE` (Server-Sent Events) 传输。
+- **准入门槛与稳定性摩擦（高摩擦原因）**：
+  - MCP README 明确声明：开放平台正式调用接入目前主要面向**企业开发者**；个人用户当前仅属于“限时体验”。
+  - 仓库存在关键未决缺陷（Open Issues）：个人 Access Token 授权入口失效的问题尚未完全修复；SSE endpoint 与 Streamable HTTP transport 存在 405 兼容性问题。
+- **当前状态与分级**：判定为 **Conditional / Higher-friction Candidate**。由于鉴权入口与传输协议的客观摩擦，暂不作为第一轮运行时原型验证对象。
+
+#### 4.1.4 百度网盘通用后端属性（存储与网络底座）
+- **安全与恢复**：回收站保留期普通用户 10 天，SVIP 30~180 天。无整库时间点回滚能力。个人版数据均存放在在线热存储池，无多层冷归档策略。
+- **网络与锁定**：国内直连带宽充沛，但官方服务协议明确对非会员实施严格的下载带宽 QoS 限制（百 KB/s 级）。到期后超额空间冻结上传，导出 TB 级数据存在现实速度摩擦。
 
 ### 4.2 Apple iCloud Drive
 - **本地空间行为**：基于系统级 `FileProvider` 架构，按需占位符（Dataless files）在 APFS 上物理占用为 0 字节，仅消耗文件系统 Inode 与扩展属性（[Apple Developer TN3150](https://developer.apple.com/documentation/technotes/tn3150-getting-ready-for-dataless-files)）。**关键缺陷**：苹果强制锁定本地路径在系统盘根目录，**完全不支持将主同步目录迁移至外置硬盘**，且软链接（Symlink）不被支持（[Apple Support: Optimize storage space on your Mac](https://support.apple.com/guide/mac-help/optimize-storage-space-sysp4ee93886/mac)）。
@@ -101,25 +139,34 @@
 
 ## 5. 候选分级分类（Classification）
 
-### 5.1 Strong Candidates（强烈推荐候选）
-1. **rclone 作为 Agent 自动化传输层 + 经单独验证的对象存储（或外置 Samsung T7 归档目录）作为 Backend**：
-   - *入选理由*：对 256GB 内置盘保护最彻底（流式直传零落地内置盘），对 8GB 内存最友好（按需执行零常驻），IDE Agent 适配性极佳（确定性 ExitCode、结构化 JSON、无头鉴权）；冷归档与防篡改能力由后端云存储底层保障。
+必须基于“自动化引擎/操作层”与“存储后端/物理层”的分离原则，避免出现单一笼统的判断。
 
-### 5.2 Conditional Candidates（有条件适用候选）
+### 5.1 Strong Agent Automation Engine（强推荐 Agent 自动化引擎）
+1. **rclone**：
+   - *入选理由*：对 256GB 内置盘保护最彻底（基于 RAM 的流式传输零落地内置盘），对 8GB 内存最友好（按需触发、执行完毕即释放，零常驻守护进程），具备极其成熟的确定性 Exit Codes、`lsjson` 结构化输出与 RC REST API。与经单独验证的境内外合规对象存储（如阿里云 OSS、腾讯云 COS）或外置 Samsung T7 配合，构成最具确定性的归档底座。
+
+### 5.2 Promising / Requires Prototype（有前景，待原型验证候选）
+1. **`baidu-drive` Agent Skill (`baidu-netdisk/bdpan-storage`)**：
+   - *入选理由*：官方原生支持 Agent 交互，提供 macOS arm64/amd64 编译版 `bdpan` CLI，操作限制在 `/apps/bdpan/` 目录形成天然隔离，具备结构化 JSON 输出与受控鉴权。
+   - *候选定位*：**适合作为 Agent 托管安全归档区（Agent-managed archive zone）的潜在介质**；但绝不能用于整理用户既有的整个百度网盘。
+   - *验证闭环*：其具体在 macOS + Antigravity 环境下的运行时最小闭环已交由 [Issue #10: 验证：百度网盘 baidu-drive Agent Skill 能否在 Antigravity 完成安全归档最小闭环？](https://github.com/carllx/mac-cleanup/issues/10) 进行验证。Issue #3 仅完成研究事实梳理与架构分级，不作运行时断言。
+
+### 5.3 Conditional Candidates（有条件适用候选）
 1. **Microsoft OneDrive (M365 订阅)**：
-   - *入选理由*：提供官方 `/unpin` CLI 释放空间；具备 30 天整库还原能力；M365 家庭版容量性价比高。
-   - *前置条件*：外置盘使用受严格限制，需通过本机 Fact Probe 确认 Samsung T7 在 macOS 下是否满足非 removable/ejectable 分类；仅适合交互式同步，Agent 批量读写需防范 File Provider 水化风暴；境内网络稳定性待本机实测。
+   - *前置条件*：需通过本机事实探测确认 Samsung T7 在 macOS 下是否符合“non-removable / non-ejectable”要求；批量读写需防范 File Provider 水化风暴；大陆个人版网络稳定性待实测。
 2. **Apple iCloud Drive（轻量系统配置级）**：
-   - *入选理由*：系统底层集成，云上贵州运营有合规与速度保障。
-   - *前置条件*：**严格限制在轻量个人文档与系统配置**；坚决不承载大型项目、科研数据集或外部归档，因其无法外置到 T7 且无可靠 CLI Evict。
+   - *前置条件*：**严格限制在轻量个人文档与系统配置**；坚决不承载大型工程、科研附件或外部归档，因其无法外置到 T7 且缺乏可靠的 CLI 释放手段。
 3. **Dropbox**：
-   - *前置条件*：需确认账号获得外置盘 rollout 资格，且系统满足 macOS 15.4+、加密 APFS 及 <500k 文件约束；需具备可靠网络连接配置。
+   - *前置条件*：需确认账号获得外置盘 rollout 资格，且环境满足 macOS 15.4+、加密 APFS 及 <500k 文件约束；大陆网络需具备可靠访问通道。
+4. **Baidu Netdisk MCP Server (`baidu-netdisk/mcp`)**：
+   - *入选理由*：提供更宽能力（语义搜索、配额等）。
+   - *前置条件与摩擦*：官方声明面向企业为主，个人仅限时体验；当前存在个人 Access Token 入口失效及 SSE 405 open issues。属于 **Higher-friction Candidate**，暂不进入第一轮运行时原型验证。
 
-### 5.3 Poor Fits（不合适方案）
-1. **百度网盘 / 阿里云盘 / 夸克网盘消费级客户端**：
-   - *排除理由*：无原生占位符（双向同步必挤爆内置盘）；无官方 CLI 工具；第三方接入存在风控与限速摩擦；数据导出成本高。
-2. **Syncthing**：
-   - *排除理由*：全量落盘无占位符；冲突命名破坏脚本路径确定性；本地误删不保留版本且实时传染；后台常驻索引挤占 8GB 内存。
+### 5.4 Poor Fit for this machine as primary full-sync layer（不适合作为本机主全量同步层）
+1. **百度网盘桌面同步客户端 (Baidu Desktop Full Sync)**：
+   - *排除理由*：未接入 macOS 原生按需占位符（开启同步即全量物理落盘，挤爆 256GB 内置盘）；无官方 CLI 工具；常驻后台挤占 8GB 内存。
+2. **Syncthing（在 256GB 内置盘上）**：
+   - *排除理由*：全量物理落盘无占位符；冲突重命名（`.sync-conflict-*`）破坏脚本执行的原子确定性；本地误删不保留版本且实时级联扩散；常驻后台索引挤占 8GB 内存。
 
 ---
 
@@ -134,7 +181,11 @@
 
 ## 7. 给后续决策（Issue #6: Storage Tiering）的输入建议
 
-本报告不越权代替后续决策，但提供以下经过实证的边界约束：
-- **热数据层（Hot Tier - 内置 256GB SSD）**：仅保留系统核心组件、当前最活跃工程与轻量配置；严禁挂载任何全量同步的消费级云盘。
+本报告不越权代替后续决策，但提供以下经过实证的边界约束与分层逻辑：
+- **热数据层（Hot Tier - 内置 256GB SSD）**：仅保留系统核心组件、当前最活跃工程与轻量配置；严禁挂载任何全量同步的消费级云盘客户端。
 - **温数据层（Warm Tier - 外置 Samsung T7 2TB）**：承接所有历史教学视频、大型开发环境及文献附件；可作为 rclone 本地归档目标，或在满足 non-removable/APFS 约束的前提下评估是否接入商业云盘外置域。
-- **冷数据层（Cold / Archive Tier - 远端存储后端）**：由 rclone 作为 Agent 调度引擎，以单向增量（`--backup-dir`）方式将陈旧数据沉降至具备 Lifecycle / WORM 能力的对象存储后端，建立防误删防勒索的安全底座。
+- **冷数据/归档层（Cold / Archive Tier - 远端存储后端）**：
+  - **通用对象存储路径**：由 rclone 作为 Agent 调度引擎，以单向增量（`--backup-dir`）方式将陈旧数据沉降至具备 Lifecycle / WORM 能力的对象存储后端，建立防误删防勒索的安全底座。
+  - **百度网盘隔离归档候选区**：若 [Issue #10](https://github.com/carllx/mac-cleanup/issues/10) 原型验证通过，可在安全隔离作用域 `/apps/bdpan/` 内作为备选的 Agent-managed archive zone；若 Issue #10 验证存在阻断性摩擦，则维持 rclone + 对象存储/外置盘为主线方案。
+  - **重要原则区分**：Issue #3 本研报仅负责梳理官方证据、架构解耦与分级评估；具体的运行时兼容性与闭环成立与否，完全交由独立拆分的 Wayfinder 原型验证票据 [Issue #10](https://github.com/carllx/mac-cleanup/issues/10) 判定。
+
