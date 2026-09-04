@@ -1,0 +1,18 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Local-only state area (STRICTLY PRIVATE: never commit real machine snapshots, logs, or private data)
+local/
+.scratch/
+
+# Environment and sensitive variables
+.env
+.env.*
+!.env.example
+
+# Temporary files and execution logs
+*.log
+*.tmp
+tmp/
