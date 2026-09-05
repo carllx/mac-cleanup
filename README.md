@@ -48,4 +48,7 @@ Observe (重新探测) → Diagnose (多维诊断) → Cleanup / Organize (决�
 - [CONTEXT.md](CONTEXT.md)：项目领域语言、核心实体及状态定义。
 - [docs/operating-model.md](docs/operating-model.md)：长期运行模型、分级标准与知识晋升机制。
 - [docs/machine-profile.md](docs/machine-profile.md)：当前设备的抽象硬件画像与长期约束描述。
+- [docs/storage-tiering-policy.md](docs/storage-tiering-policy.md)：三层存储体系分工策略（内置盘、Samsung T7 与云端归档）。
+- [docs/operational-buffer-emergency-cleanup-policy.md](docs/operational-buffer-emergency-cleanup-policy.md)：运行缓冲与应急清理分级策略（RED/ORANGE/YELLOW/GREEN）。
+- [docs/target-workspace-architecture.md](docs/target-workspace-architecture.md)：目标工作区架构（Target Workspace Architecture v1 与文件生命周期）。
 - [AGENTS.md](AGENTS.md)：Agent 与工具链协作配置入口。
