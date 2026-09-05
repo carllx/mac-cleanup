@@ -146,7 +146,7 @@
   - 但缺乏对象版本锁定、不支持 POSIX 权限保真封装，目前定性为 **“重要归档包的异地冷冻火种库 (Secondary Cold Archive)”**，而非全自动灾备系统。
 * **macOS Time Machine 事实**：
   - 命令 `tmutil destinationinfo` 返回 `No destinations configured`（未配置备份目标盘）；
-  - 命令 `tmutil listlocalsnapshots /` 实测仅存在系统更新自动生成的系统卷快照（`com.apple.os.update-...`），**无任何用户数据级本地快照支持**。
+  - 命令 `tmutil listlocalsnapshots /` 当前仅观察到系统更新相关快照，未观察到 Time Machine 用户数据本地快照。当前又未配置 Time Machine backup destination，因此 Backup / Restore Policy 不依赖本地 snapshots 作为有效灾备层。
 * **macOS iCloud 事实**：
   - 目录仅有部分应用沙盒，命令行证据**无法证明已开启 Desktop & Documents 同步**（标记为 `Not verified / no evidence of Desktop & Documents coverage`），不做无证据猜测。
 
