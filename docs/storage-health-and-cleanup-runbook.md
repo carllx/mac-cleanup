@@ -197,23 +197,24 @@ Maintenance Decision:
 
 ## 11. 外部执行引擎与能力分流 (External Engine & Mole Delegation)
 
-本项目已完成从 CleanMyMac 到开源现代 CLI 工具 **Mole** (`mo`) 的受控准入，确立“项目策略权威 (Project Policy Authority) / 已测试运行时依赖 (Tested Mole Runtime Dependency) / 研究上游 (Research Upstream)”三分法治理体系（详细策略见 `docs/mole-integration-policy.md`）。在日常及应急维护中，遵循以下原则与职责划分：
+本项目已完成从 CleanMyMac 到开源现代 CLI 工具 **Mole** (`mo`) 的受控准入，确立“项目策略权威 (Project Policy Authority) / 已测试运行时依赖 (Tested Mole Runtime Dependency) / 研究上游 (Research Upstream)”三分法治理体系与“用户最终授权边界 (User Authorization Boundary)”（详细策略见 `docs/mole-integration-policy.md`）。在日常及应急维护中，遵循以下原则与职责划分：
 
 1. **实体属性与安全边界**：
+   - **用户最终授权边界**：用户独立于技术模型之外，是涉及破坏性数据修改的最终信任与授权边界；项目策略负责规则过滤，绝不能代替用户自行批准破坏性数据变更。
    - **观察事实 vs 清理候选**：`mo status` 的度量与 `mo analyze` 的磁盘列表属于系统观察事实（Observation）；仅具体提出的拟删除/拟优化项属于清理候选（Cleanup Candidate）。
-   - **删除语义与门禁**：已知 `mo clean` 默认执行**直接永久删除**，严禁将其泛化假定为废纸篓缓冲；必须强制以 `mo clean --dry-run` 作为前置预览门禁（该预览会生成本地临时清单 `~/.config/mole/clean-list.txt`）。
-   - **工程边界策略**：严禁执行无限定范围的全局 `mo purge`，涉及代码构建产物必须先预览并优先以 `--paths` 显式限定。
+   - **删除语义与门禁**：已知 `mo clean` 默认执行**直接永久删除**，严禁将其泛化假定为废纸篓缓冲；必须强制以 `mo clean --dry-run` 非破坏性预览作为前置门禁（该预览会生成本地临时清单 `~/.config/mole/clean-list.txt`）。
+   - **工程边界策略**：严禁执行无限定范围的全局 `mo purge`，涉及代码构建产物必须先非破坏性预览并优先以 `--paths` 显式限定。
 2. **三分类治理映射**：
    - **`DELETE` (本土废弃)**：
      - 彻底废除针对 CleanMyMac 的特定适配与手工界面操作指引。
      - 废除本土硬编码的静态应用缓存与日志路径黑名单，由上游引擎动态维护。
    - **`DELEGATE_TO_MOLE` (委托执行)**：
-     - 通用系统缓存与日志扫描（以 `mo clean --dry-run` 预览并人工批复为前提）。
-     - 系统服务状态刷新（DNS、Spotlight、QuickLook 缩略图等，`mo optimize`）。
+     - 通用系统缓存与日志扫描（以 `mo clean --dry-run` 非破坏性预览并经用户授权为前提）。
+     - 系统维护/刷新动作（DNS、Spotlight、QuickLook 缩略图等，`mo optimize`）。
      - 磁盘空间与大文件快照（`mo analyze --json`）。
      - 遗留安装包镜像扫描（`mo installer`）。
    - **`KEEP_LOCAL` (本土保留最高主权)**：
-     - **最高决策与准入权威**：所有清理候选必须经由本土 `HIGH RISK / REVIEW FIRST / LOW RISK` 审查，本土拥有绝对一票否决权。
+     - **最高决策与准入权威**：所有清理候选必须经由本土 `HIGH RISK / REVIEW FIRST / LOW RISK` 审查，本土拥有绝对一票否决权，破坏性删除必须由用户最终授权。
      - **核心资产防护**：Zotero、Calibre、Obsidian、微信/企微数据库、教学课件源码等绝对禁动。
      - **分层存储与迁移门禁**：Tier 1 与 Tier 2 分层决策及 6 步 Verified Migration Protocol 必须由本土严格控制。
      - **开发环境规范收敛**：Python、Conda、Node 多版本收敛与零消费者验证（Zero-Consumer Gate）。
