@@ -47,3 +47,21 @@
 
 ### Environment Canonicalization（开发环境规范收敛）
 针对同类开发工具链（如 Python、Node、CLI）存在的多实例、重复包管理器、冗余虚拟环境进行统一标准化的过程。旨在确立单一事实来源（Single Source of Truth），避免同一工具在系统中被多次安装与占用空间。
+
+---
+
+## 5. 外部能力与知识上游范畴
+
+### External Execution Engine（外部执行引擎）
+经受控准入、具备特定系统清理或优化能力的第三方外部工具（如 Mole CLI `mo`）。作为本土治理框架调用的下层能力实现，仅提供候选探测与受控执行能力，不具备自主决策权。
+
+### Research Upstream（研究上游）vs Runtime Authority（运行时权威）
+- **Research Upstream**：外部工具及其开源社区（如 Mole 上游仓库）作为知识输入源，提供前沿清理启发式规则、macOS 新机制洞察与缺陷修复。
+- **Runtime Authority**：`mac-cleanup` 本地代码库与治理规范是机器状态决策的**唯一最高权威**。外部工具的探测规则必须经过本土策略过滤，本项目的安全分级具有绝对优先解释权。
+
+### Upstream Candidate Downgrade（上游候选降级机制）
+外部执行引擎扫描输出的所有待清理或待优化项目，在进入 `mac-cleanup` 决策流时均强制降级为 **Cleanup Candidate（清理候选）**。任何外部引擎的“一键清理”或自动标记在本项目中均不构成直接执行依据，严禁静默或自动放行。
+
+### Upstream Monitoring Owner（上游监控者角色）
+负责周期性追踪外部引擎上游动态、新版本发布与安全通告的逻辑角色（如 Gemini Spark）。其职责严格限定于只读知识跟踪与差异提醒，不持有凭据，不直接调度或执行系统变更。
+

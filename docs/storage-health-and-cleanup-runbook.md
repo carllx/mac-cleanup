@@ -192,3 +192,25 @@ Maintenance Decision:
 - ✅ 剩余候选对象的清理风险与人工审核成本已显著大于其可回收容量收益；
 - ✅ 剩余占用主要来自用户正在进行的正常活跃工作流；
 - ✅ 无任何无法解释的异常后台膨胀。
+
+---
+
+## 11. 外部执行引擎与能力分流 (External Engine & Mole Delegation)
+
+本项目已完成从 CleanMyMac 到开源现代 CLI 工具 **Mole** (`mo`) 的受控准入，将其作为外部执行引擎与知识上游（详细策略见 `docs/mole-integration-policy.md`）。在日常及应急执行中，遵循以下三分类原则：
+
+1. **`DELETE` (本土废弃)**：
+   - 彻底废除针对 CleanMyMac 的特定适配与手工界面操作指引。
+   - 废除本土硬编码的静态应用缓存与日志路径黑名单，由上游引擎动态维护。
+2. **`DELEGATE_TO_MOLE` (委托执行)**：
+   - 通用系统缓存与日志扫描（`mo clean --dry-run` 预览后执行）。
+   - 系统服务状态刷新（DNS、Spotlight、QuickLook 缩略图等，`mo optimize`）。
+   - 磁盘空间与大文件快照（`mo analyze --json`）。
+   - 遗留安装包镜像扫描（`mo installer`）。
+3. **`KEEP_LOCAL` (本土保留最高主权)**：
+   - **最高决策与准入权威**：Mole 输出始终为 `Cleanup Candidate`，无自动执行权；本土 `HIGH RISK / REVIEW FIRST / LOW RISK` 拥有绝对一票否决权。
+   - **核心资产防护**：Zotero、Calibre、Obsidian、微信/企微数据库、教学课件源码等绝对禁动。
+   - **分层存储与迁移门禁**：Tier 1 与 Tier 2 分层决策及 6 步 Verified Migration Protocol 必须由本土严格控制。
+   - **开发环境规范收敛**：Python、Conda、Node 多版本收敛与零消费者验证（Zero-Consumer Gate）。
+   - **工程边界防护**：`mo purge` 默认禁用宽泛扫描，严防误删活跃工作区依赖。
+
