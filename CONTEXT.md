@@ -52,16 +52,22 @@
 
 ## 5. 外部能力与知识上游范畴
 
-### External Execution Engine（外部执行引擎）
-经受控准入、具备特定系统清理或优化能力的第三方外部工具（如 Mole CLI `mo`）。作为本土治理框架调用的下层能力实现，仅提供候选探测与受控执行能力，不具备自主决策权。
+### 三分法权威治理模型 (Three-Way Authority Model)
+1. **Project Policy Authority（项目策略权威）**：`mac-cleanup` 本地代码库与治理规范拥有全部授权决策、风险定级（`HIGH RISK / REVIEW FIRST / LOW RISK`）与一票否决权，是机器状态治理的唯一最高权威。
+2. **Tested Mole Runtime Dependency（已测试的 Mole 运行时依赖）**：本机通过 Homebrew 安装并固定的 Mole CLI 二进制（当前测试版本 `1.57.0`），拥有其实际的命令执行语义与物理行为（如 `mo clean` 默认物理删除、`mo uninstall` 默认移入废纸篓等）。
+3. **Research Upstream（研究上游）**：`tw93/Mole` 开源社区与代码库，仅作为咨询、启发式规则探索与 macOS 新机制洞察的参考输入，不具备对本机的直接控制权。
 
-### Research Upstream（研究上游）vs Runtime Authority（运行时权威）
-- **Research Upstream**：外部工具及其开源社区（如 Mole 上游仓库）作为知识输入源，提供前沿清理启发式规则、macOS 新机制洞察与缺陷修复。
-- **Runtime Authority**：`mac-cleanup` 本地代码库与治理规范是机器状态决策的**唯一最高权威**。外部工具的探测规则必须经过本土策略过滤，本项目的安全分级具有绝对优先解释权。
+### Observation / Telemetry（观察与遥测）vs Cleanup Candidate（清理候选）
+外部引擎的输出不能无差别一概归入清理候选，必须严格区分：
+- **Observation / Telemetry（系统观察与遥测）**：`mo status` 的健康评分、CPU/内存/磁盘读数，以及 `mo analyze` 输出的目录体积行，均属于只读观察事实，用于机器状态评估，不直接构成清理候选。
+- **Cleanup Candidate（清理候选）**：`mo clean`、`mo uninstall`、`mo purge`、`mo installer` 及 `mo optimize` 显式列出的拟删除、拟优化目标实体，在未完成本地策略审查与人工批复前，属于受限的清理候选，严禁自动执行。
 
-### Upstream Candidate Downgrade（上游候选降级机制）
-外部执行引擎扫描输出的所有待清理或待优化项目，在进入 `mac-cleanup` 决策流时均强制降级为 **Cleanup Candidate（清理候选）**。任何外部引擎的“一键清理”或自动标记在本项目中均不构成直接执行依据，严禁静默或自动放行。
+### 命令特定执行语义 (Command-Specific Execution Semantics)
+Mole 工具不同子命令的删除与恢复语义存在根本差异，禁止将其泛化概括为“废纸篓缓冲”：
+- **`mo clean`**：默认执行**直接永久删除 (Permanent deletion by default)**。因此，`--dry-run` 预览是至关重要的安全防护门禁。
+- **`mo uninstall`**：默认**移入系统废纸篓 (Trash by default)**，除非显式指定 `--permanent`。
+- **`mo analyze`**：交互界面中由用户选定的删除项目会路由至系统废纸篓。
+- **非破坏性预览快照**：`mo clean --dry-run` 会向磁盘写入本地预览清单 `~/.config/mole/clean-list.txt`，该操作属于非破坏性只读预览，但涉及该临时快照文件的本地写入。
 
 ### Upstream Monitoring Owner（上游监控者角色）
 负责周期性追踪外部引擎上游动态、新版本发布与安全通告的逻辑角色（如 Gemini Spark）。其职责严格限定于只读知识跟踪与差异提醒，不持有凭据，不直接调度或执行系统变更。
-
