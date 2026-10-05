@@ -70,13 +70,16 @@
 
 ### 4.1 管理器与版本规范
 1. **规范版本管理器**：
-   - **NVM** 是本机唯一的 Node 版本管理器。禁止通过 Homebrew 再次安装 `brew install node`，杜绝多重管理器冲突。
-2. **默认活跃版本策略**：
-   - NVM 默认版本与当前活跃版本固定为 **LTS / Current 稳定版本（当前为 `v24.3.0`）**；
-   - IDE 终端、系统全局脚本与 `~/.npm-global` 统一绑定该活跃版本。
-3. **多版本共存准则**：
+   - **NVM** 是本机唯一的规范 Node 版本管理器。禁止通过 Homebrew 再次安装 `brew install node`，杜绝多重管理器冲突。
+2. **默认版本与兼容性准则**：
+   - 默认 Node 版本应保持为一个**与当前消费者兼容且受支持的稳定版本**，不机械追逐上游最新 Current；
+   - 当前现场实测核验的默认版本为 **`v24.3.0`**（这是机器现状事实，并非宣称其为上游最新状态）；
+   - 具体项目可通过项目根目录下的 `.nvmrc` 显式声明并锁定其所需的 Node 大版本；
+   - 任何 Node 版本的升级均属于独立的兼容性评估与变更门禁，本策略不直接授权升级操作。
+3. **多版本共存与退役准则**：
    - 仅当某特定遗留工程有明确 `.nvmrc` 且该工程处于活跃维护时，才允许保留对应的旧 Node 版本；
-   - 严格禁止在 NVM 中无故保留残缺、无法执行或零消费者的历史版本。
+   - 严格禁止在 NVM 中无故保留残缺、无法执行或零消费者的历史版本；
+   - 现场复核确认残留的 `v20.0.0` 处于残缺状态（无可执行文件，零消费者），定级为 `RETIREMENT CANDIDATE — HIGH CONFIDENCE`，等待未来独立授权 Gate 移除。
 
 ---
 
@@ -105,23 +108,18 @@
 
 ---
 
-## 6. 全局 PATH 排序策略 (PATH Ordering Policy)
+## 6. 全局 PATH 治理策略 (PATH Ordering Policy)
 
-### 6.1 黄金排序准则 (Golden Rule of PATH)
-终端环境变量 `PATH` 的解析顺序必须遵循：**系统控制平面 → 规范交互解释器 → 用户级独立 CLI → 系统底层基线**。
+### 6.1 角色级核心不变量 (Role-Level Invariants)
+本策略不对全局 PATH 强加僵化的硬编码绝对全序，而是确立以下必须满足的**角色级不变量 (Invariants)**：
 
-```text
-[建议的长期 PATH 优先级流向]
-1. ~/.npm-global/bin                       (用户级全局 Node CLI)
-2. /opt/homebrew/bin, /opt/homebrew/sbin   (Homebrew 核心控制平面与系统 CLI)
-3. /opt/miniconda3/bin                     (权威全局交互式 Python & 科学计算底座)
-4. ~/.local/bin                            (规范用户独立 CLI，包含 uv tool / 独立脚本)
-5. 系统底层路径 (/usr/bin, /bin, /usr/sbin) (Apple 系统基线)
-```
+1. **通用解释器解析权**：终端交互式 `python` / `python3` 必须解析至用户批准的 Miniconda 权威交互式 Python（`/opt/miniconda3/bin/python`）；
+2. **工具沙盒隔离隔离权**：工具专属虚拟环境目录（如 `.agent-reach-venv/bin`）严禁在全局 PATH 中前置，不得隐式遮蔽通用解释器名称；
+3. **规范属主优先权**：经策略确立的规范面向用户 CLI 属主，必须在同名命令调用中胜出；
+4. **系统底层基线安全**：macOS 系统专属路径（`/usr/bin`, `/bin`, `/usr/sbin`）保持始终可达，严禁被破坏或不可逆覆盖；
+5. **变更前实测门禁**：在未来任何针对 `~/.zshrc` 的 PATH 调整实施前，方案必须针对受影响命令调用 `type -a`、`command -v` 或 `which -a` 进行现场冲突核验。
 
-### 6.2 严禁反模式 (Anti-Patterns Prohibited)
-- ❌ **严禁前置工具专属 venv**：`export PATH="$HOME/.some-tool-venv/bin:$PATH"`（会导致该工具私有的 Python 解释器遮蔽系统的通用科学计算环境）。
-- ❌ **严禁重复追加与循环嵌套**：保持 `.zshrc` 中 PATH 构建逻辑清晰幂等。
+> **实施边界说明**：具体的 PATH 调整方案与 `.zshrc` 编辑属于未来的**独立有界变更计划 (Bounded Mutation Plan)**，本策略决议 PR 不直接修改任何用户 shell 配置文件。
 
 ---
 
@@ -157,17 +155,31 @@
 
 开发工具链的下载与包缓存具有**快速自然再生（Regenerable）**与**加速构建**的双重属性。严禁单纯为了追求数字而进行激进的日常清理。
 
-### 8.1 缓存治理分级标准
-1. **微小缓存放行准则（Sufficiency Stop）**：
-   - 体积 `< 200 MB` 的包管理器缓存（如当前 Homebrew 58MB、Bun 106MB），属于健康运行缓冲，**一律判定为无需操作 (KEEP AS IS / NOT_WORTH_COMPLEXITY)**。
-2. **增长触发式清理（Growth-Triggered Reclaim）**：
-   - 仅当某单一包缓存发生异常膨胀（例如 `uv cache` 超过 **2.0 GB**，或全局缓存总和导致内置盘跌破 **🟢 GREEN (20 GiB)** 缓冲）时，才启动定向修剪。
-3. **强制采用宿主原生命令（Owner-Native Cleaners Only）**：
-   - 必须调用该工具官方内置的安全修剪命令，严禁直接执行 `rm -rf` 盲删缓存根目录：
-     - `uv`：`uv cache prune`（修剪不可达对象）；
-     - `conda`：`conda clean --tarballs`（仅清理下载压缩包，保留解压元数据）；
-     - `npm`：`npm cache verify`（验证与整理，而非无脑强删）；
-     - `Homebrew`：`brew cleanup --prune=30`（仅清理 30 天前的旧版本 bottle）。
+### 8.1 增长与价值驱动模型 (Growth & Value-Driven Model)
+本策略放弃任何机械硬编码的绝对体积阈值（如固定大小阈值），与运行手册（`docs/storage-health-and-cleanup-runbook.md`）保持一致，采用增量与价值决策链：
+
+$$\text{baseline} \longrightarrow \text{delta} \longrightarrow \text{growth source} \longrightarrow \text{reclaim value} \longrightarrow \text{decision}$$
+
+评估某项缓存是否值得复核与处理，必须基于以下多维考量：
+- **相对于历史基线的观测增长量 (Observed growth relative to baseline)**；
+- **当前系统启动盘剩余缓冲 (Startup-disk headroom)**；
+- **预期可释放物理空间与边际收益 (Expected reclaim)**；
+- **重新下载、编译或重建的时间与带宽成本 (Re-download / rebuild cost)**；
+- **操作引入的环境断连或依赖破坏风险 (Operational complexity)**。
+
+### 8.2 宿主原生缓存维护命令语义 (Owner-Native Cleaners)
+所有缓存维护必须调用各管理器官方提供的原生维护指令，严禁直接执行 `rm -rf` 强删缓存根目录：
+
+1. **`uv cache prune`**：
+   - 语义：官方原生缓存维护命令，用于移除未使用的缓存条目以及可重新创建的集中式项目环境。
+   - 注意：该操作会删除旧下载与未使用缓存，并非字面“无损”操作，需按需执行。
+2. **`brew cleanup`**：
+   - 语义：除了清理旧的下载缓存外，可能连带移除旧版本的已安装 formula。
+   - 安全门禁：未来执行前必须先使用 `brew cleanup -n` 预览待移除项。
+3. **`npm cache verify`**：
+   - 语义：验证缓存内容的完整性、清理垃圾索引并执行垃圾回收，并非直接全盘清空缓存。
+4. **`conda clean --tarballs`**：
+   - 语义：仅安全清理本地下载的压缩包（tarballs），保留解压出的包目录；未来操作在支持时应使用 preview。
 
 ---
 
@@ -199,15 +211,15 @@
 
 | 候选实体 (Candidate Entity) | 现场实测状态 (Verified Fact) | 规模 (Footprint) | 权威分类 (Disposition) | 治理准则与后续路径 |
 | :--- | :--- | :--- | :--- | :--- |
-| **Conda `mybase`** | **物理路径已不存在 (Absent on disk)** | 0 B | **`RESOLVED / ABSENT`** | 现场确证 `~/.conda/envs/mybase` 在文件系统中已不存在，已在先前会话或本地清理中安全移出，不再作为待处理项。 |
+| **Conda `mybase`** | **当前在磁盘上已不存在** | 0 B | **`RESOLVED / ABSENT`** | `VERIFIED CURRENT: absent on disk. Removal time/mechanism was not established by this review.` 确认已不在磁盘，无需后续动作。 |
 | **NVM Node `v20.0.0`** | **残缺且无 node 可执行文件** | 49 MB | **`RETIREMENT CANDIDATE — HIGH CONFIDENCE`** | 仅存历史模块残留，NVM 默认已指向 v24.3.0，零消费者。列入高置信度退役候选，等待独立清理 Gate 授权移除。 |
 | **Homebrew Python `3.12` / `3.13`** | **被核心 Homebrew 软件强依赖** | 150 MB | **`KEEP PACKAGE-MANAGER-OWNED`** | 经 `brew uses --installed` 实测被 `ffmpeg`, `libmediainfo`, `pdftk-java` 等依赖，严禁脱离包管理器删除。 |
-| **Miniconda Base (`3.13.5`)** | **用户规则指定科学计算基座** | 713 MB | **`KEEP / CANONICAL INTERACTIVE`** | 承载基础科学计算与大多 CLI 的 shebang 底座，严格保留作为用户层通用 Python。 |
-| **专用环境 `.agent-reach-venv`** | **活跃专用于 Agent Reach** | 75 MB | **`KEEP PROJECT-SCOPED`** | 工具私有环境保留，但后续需解耦全局 PATH 前置，消除对系统通用解释器的隐式遮蔽。 |
-| **全局 CLI `yt-dlp` (多副本)** | **~/.local/bin 与 venv 均存有 2026.08.19** | 35.4 MB | **`REPAIR / CANONICALIZE FIRST`** | 目标建立以 `uv tool` 或独立单体二进制为 Canonical Owner 的机制，将专用 venv 内的副本降级为 private dependency。 |
+| **Miniconda Base (`3.13.5`)** | **用户规则指定科学计算基座** | 713 MB | **`KEEP / CANONICAL INTERACTIVE`** | 权威交互式科学计算底座，严格保留作为用户层通用 Python。 |
+| **专用环境 `.agent-reach-venv`** | **活跃专用于 Agent Reach** | 75 MB | **`KEEP PROJECT-SCOPED`** | 工具私有环境保留，后续解耦全局 PATH 前置，消除对系统通用解释器的隐式遮蔽。 |
+| **全局 CLI `yt-dlp` (多副本)** | **~/.local/bin 与 venv 均存有 2026.08.19** | 35.4 MB | **`REPAIR / CANONICALIZE FIRST`** | 目标建立以独立 CLI（如 `uv tool`）为 Canonical Owner 的机制，将专用 venv 内的副本降级为 private dependency。 |
 | **孤儿链接 `gitingest` / `gitingest-agent`** | **软链接目标路径缺失 (Broken)** | < 1 KB | **`REPAIR / CANONICALIZE FIRST`** | 属已失效软链接，无活跃可执行目标。等待后续专项配置整理时安全解除软链接。 |
 | **开发软链接 `doubao-web-bridge`** | **依赖 Downloads 临时目录源码** | 符号链接 | **`REPAIR / CANONICALIZE FIRST`** | 需先将源码移入正式代码库工作区并重新 `npm link`，解除对 Downloads 目录的隐式依赖。 |
-| **`uv` 缓存目录 (`~/.cache/uv`)** | **实测体积 2.2 GB** | 2.2 GB | **`GROWTH CANDIDATE FOR NATIVE PRUNE`** | 突破 2GB 防御性关注线，建议在后续清理批次中调用官方 `uv cache prune` 执行无损修剪。 |
+| **`uv` 缓存目录 (`~/.cache/uv`)** | **实测体积 2.2 GB (主要为 archive-v0)** | 2.2 GB | **`REVIEW FOR OWNER-NATIVE PRUNE`** | 观测到显著增量，列入基于增长的复核候选，建议在后续维护批次中通过 `uv cache prune` 受控整理。 |
 
 ---
 
